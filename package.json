@@ -1,0 +1,28 @@
+{
+  "name": "codex",
+  "version": "1.0.3",
+  "description": "Отправка Asterisk Event и записи разговоров на Endpoint",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "nami",
+    "asterisk",
+    "asterisk",
+    "event",
+    "voip"
+  ],
+  "author": "ProVitSer",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.21.0",
+    "form-data": "^3.0.0",
+    "fs": "0.0.1-security",
+    "log4js": "^6.3.0",
+    "moment": "^2.29.1",
+    "mysql": "^2.18.1",
+    "nami": "^0.7.2",
+    "util": "^0.12.3"
+  }
+}

@@ -5,20 +5,17 @@ const moment = require('moment'),
     Endpoint = require('./src/endpoints'),
     createAsteriskEventObj = require('./src/createAsteriskObj'),
     appConfig = require(`./config/config`),
-    searchCallInfoInCdr = require('./src/searchInDb');
+    searchInDb = require('./src/searchInDb'),
+    delObj = require('./deleteAsteriskObj');
+
 
 const endpoint = new Endpoint(appConfig.endpoint.event),
     SEARCH_TIMEOUT = 15000,
+    DEL_OBJ_TIMEOUT = 30000,
     CHECK_TIMEOUT = 500;
 
 let asteriskLinkedid = [],
     check = true;
-
-let status = {
-    "NO ANSWER": "Missed",
-    "ANSWERED": "Completed",
-    "BUSY": "Busy"
-};
 
 const checkCreateCallObj = () => {
     check = true;
@@ -88,6 +85,29 @@ nami.on(`namiEventNewexten`, (event) => {
         logger.info(event);
     }
 
+    //Событие Congestion. Внутренний абонент не зарегистрирован
+    if (event.channelstatedesc == `Up` &&
+       event.calleridnum.toString().length > 3 &&
+       event.exten == 's-CHANUNAVAIL' &&
+       event.application == 'Congestion') {
+
+       logger.info(event);
+       asteriskLinkedid[event.linkedid].Status = 'Missed';
+       setTimeout(searchInDb.searchCongestionCallInfoInCDR, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+       setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
+   }
+
+});
+
+nami.on(`namiEventVarSet`, (event) => {
+    if (event.calleridnum.toString().length < 4 &&
+        event.connectedlinenum.toString().length > 3 &&
+        event.context == 'from-internal' &&
+        event.variable == 'BLINDTRANSFER') {
+
+        logger.info(event);
+        asteriskLinkedid[event.linkedid].CallTransfer = true;
+    }
 });
 
 nami.on(`namiEventNewchannel`, (event) => {
@@ -173,7 +193,8 @@ nami.on(`namiEventBridgeEnter`, (event) => {
 
 nami.on(`namiEventHangup`, (event) => {
     //Событие Завершение входящего вызова. Групповой вызов отвеченный
-    if (asteriskLinkedid[event.linkedid] &&
+    if (!asteriskLinkedid[event.linkedid].CallTransfer && 
+        asteriskLinkedid[event.linkedid] &&
         asteriskLinkedid[event.linkedid].CheckEvent &&
         event.connectedlinenum.toString().length > 3 &&
         event.calleridnum.toString().length < 4 &&
@@ -184,7 +205,26 @@ nami.on(`namiEventHangup`, (event) => {
         asteriskLinkedid[event.linkedid].CheckEvent = false;
         asteriskLinkedid[event.linkedid].CodexExtention = event.calleridnum;
         asteriskLinkedid[event.linkedid].Status = 'Completed';
-        setTimeout(searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(searchInDb.searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
+        asteriskLinkedid[event.linkedid].switchCheckEvent();
+    }
+    //Событие Завершение входящего вызова при трансфере.
+    if (asteriskLinkedid[event.linkedid] &&
+        asteriskLinkedid[event.linkedid].CallTransfer && 
+        asteriskLinkedid[event.linkedid].CheckEvent &&
+        event.connectedlinenum.toString().length < 4 &&
+        event.calleridnum.toString().length > 4 &&
+        event.context == 'from-internal' &&
+        event.channelstatedesc != 'Ringing' &&
+        event.cause != '26') {
+
+        logger.info(event);
+        asteriskLinkedid[event.linkedid].CheckEvent = false;
+        asteriskLinkedid[event.linkedid].CodexExtention = event.connectedlinenum;
+        asteriskLinkedid[event.linkedid].Status = 'Completed';
+        setTimeout(searchInDb.searchTransferCallInfoInCDR, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
         asteriskLinkedid[event.linkedid].switchCheckEvent();
     }
     //Событие Завершение входящего вызова. Групповой вызов отвеченный
@@ -199,7 +239,8 @@ nami.on(`namiEventHangup`, (event) => {
         asteriskLinkedid[event.linkedid].CheckEvent = false;
         asteriskLinkedid[event.linkedid].CodexExtention = event.connectedlinenum;
         asteriskLinkedid[event.linkedid].Status = 'Completed';
-        setTimeout(searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(searchInDb.searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
         asteriskLinkedid[event.linkedid].switchCheckEvent();
     }
     //Событие Завершение входящего вызова. Групповой вызов неотвеченный
@@ -213,7 +254,8 @@ nami.on(`namiEventHangup`, (event) => {
         logger.info(event);
         asteriskLinkedid[event.linkedid].CheckEvent = false;
         asteriskLinkedid[event.linkedid].Status = 'Completed';
-        setTimeout(searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(searchInDb.searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
         asteriskLinkedid[event.linkedid].switchCheckEvent();
     }
     //Событие Завершение входящего вызова. Неответ или сброс вызова при звонке напрямую на добавочный номер
@@ -229,7 +271,8 @@ nami.on(`namiEventHangup`, (event) => {
         asteriskLinkedid[event.linkedid].CheckEvent = false;
         asteriskLinkedid[event.linkedid].CodexExtention = event.calleridnum;
         asteriskLinkedid[event.linkedid].Status = 'Completed';
-        setTimeout(searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(searchInDb.searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
         asteriskLinkedid[event.linkedid].switchCheckEvent();
     }
     //Событие Завершение входящего вызова. Неответ или сброс вызова при звонке напрямую на добавочный номер
@@ -245,7 +288,8 @@ nami.on(`namiEventHangup`, (event) => {
         asteriskLinkedid[event.linkedid].CheckEvent = false;
         asteriskLinkedid[event.linkedid].CodexExtention = event.calleridnum;
         asteriskLinkedid[event.linkedid].Status = 'Completed';
-        setTimeout(searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(searchInDb.searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
         asteriskLinkedid[event.linkedid].switchCheckEvent();
     }
     //Событие Завершение исходящего вызова.
@@ -258,7 +302,8 @@ nami.on(`namiEventHangup`, (event) => {
         logger.info(event);
         asteriskLinkedid[event.linkedid].CheckEvent = false;
         asteriskLinkedid[event.linkedid].Status = 'Completed';
-        setTimeout(searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(searchInDb.searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
     }
     //Событие Завершение исходящего вызова в случае исходящий CID городской номер.
     if (asteriskLinkedid[event.linkedid] &&
@@ -270,6 +315,7 @@ nami.on(`namiEventHangup`, (event) => {
         logger.info(event);
         asteriskLinkedid[event.linkedid].CheckEvent = false;
         asteriskLinkedid[event.linkedid].Status = 'Completed';
-        setTimeout(searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(searchInDb.searchCallInfoInCdr, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
     }
 });

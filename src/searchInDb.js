@@ -3,8 +3,16 @@ const db = require(`../models/db`),
     Endpoint = require('./endpoints'),
     util = require('util');
 
+    
 const endpoint = new Endpoint(appConfig.endpoint.event),
     endpointFile = new Endpoint(appConfig.endpoint.file);
+
+let status = {
+    "NO ANSWER": "Missed",
+    "ANSWERED": "Completed",
+    "BUSY": "Busy"
+};
+
 
 const searchCallInfoInCdr = (asteriskLinkedid, uniqueid) => {
     db.query('select billsec,disposition,recordingfile from cdr where uniqueid like  "' + uniqueid + '"', (err, result) => {
@@ -54,4 +62,41 @@ const searchGroupCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
 };
 
 
-module.exports = searchCallInfoInCdr;
+const searchCongestionCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
+    db.query('select dst,recordingfile from cdr where uniqueid like  "' + uniqueid + '" ', (err, result) => {
+        if (err) logger.error(err);
+        if (result[0]) {
+            logger.info(`Результат выполнения запроса searchCongestionCallInfoInCDR ${util.inspect(result)}`);
+            asteriskLinkedid[uniqueid].CodexExtention = result[0].dst;
+            endpoint.sendEvent(asteriskLinkedid[uniqueid]);
+            if (result[0].recordingfile && result[0].recordingfile != '') {
+                logger.info(`Отправляем запись ${result[0].recordingfile}`);
+                endpointFile.sendAudio(result[0].recordingfile, uniqueid);
+            }
+        } else {
+            logger.info(`Congestion call error ${uniqueid} ${util.inspect(result)}`);
+        }
+    });
+};
+
+const searchTransferCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
+    db.query('select dst,recordingfile, billsec from cdr where uniqueid like "' + uniqueid + '" ORDER BY sequence DESC LIMIT 1;', (err, result) => {
+        if (err) logger.error(err);
+        if (result[0]) {
+            logger.info(`Результат выполнения запроса searchTransferCallInfoInCDR ${util.inspect(result)}`);
+            asteriskLinkedid[uniqueid].CodexExtention = result[0].dst;
+            asteriskLinkedid[uniqueid].CallTime = result[0].billsec;
+            endpoint.sendEvent(asteriskLinkedid[uniqueid]);
+            if (result[0].recordingfile && result[0].recordingfile != '') {
+                logger.info(`Отправляем запись ${result[0].recordingfile}`);
+                endpointFile.sendAudio(result[0].recordingfile, uniqueid);
+            }
+        } else {
+            logger.info(`Transfer call error ${uniqueid} ${util.inspect(result)}`);
+        }
+    });
+};
+
+
+
+module.exports = {searchCallInfoInCdr, searchCongestionCallInfoInCDR, searchTransferCallInfoInCDR};

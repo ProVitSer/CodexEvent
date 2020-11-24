@@ -17,6 +17,7 @@ module.exports = {
             "CheckDtmf": true,
             "CheckEvent": true,
             "CallTransfer": false,
+            "CallTransferId": '',
             "Timer": timer,
             switchCheckDtmf() {
                 setTimeout(() => {

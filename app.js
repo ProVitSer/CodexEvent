@@ -2,11 +2,12 @@
 const moment = require('moment'),
     util = require('util'),
     nami = require(`./models/ami`),
+    logger = require(`./logger/logger`), 
     Endpoint = require('./src/endpoints'),
     createAsteriskEventObj = require('./src/createAsteriskObj'),
     appConfig = require(`./config/config`),
     searchInDb = require('./src/searchInDb'),
-    delObj = require('./deleteAsteriskObj');
+    delObj = require('./src/deleteAsteriskObj');
 
 
 const endpoint = new Endpoint(appConfig.endpoint.event),
@@ -100,14 +101,17 @@ nami.on(`namiEventNewexten`, (event) => {
 });
 
 nami.on(`namiEventVarSet`, (event) => {
-    if (event.calleridnum.toString().length < 4 &&
+    if (event.calleridnum &&
+        event.calleridnum.toString().length < 4 &&
         event.connectedlinenum.toString().length > 3 &&
         event.context == 'from-internal' &&
         event.variable == 'BLINDTRANSFER') {
 
         logger.info(event);
         asteriskLinkedid[event.linkedid].CallTransfer = true;
+        logger.info(`${util.inspect(asteriskLinkedid[event.linkedid])}`);
     }
+
 });
 
 nami.on(`namiEventNewchannel`, (event) => {
@@ -142,6 +146,7 @@ nami.on(`namiEventBridgeEnter`, (event) => {
         asteriskLinkedid[event.linkedid].AnswerTime = moment().format();
         asteriskLinkedid[event.linkedid].switchCheckEvent();
         endpoint.sendEvent(asteriskLinkedid[event.linkedid]);
+        logger.info(`${util.inspect(asteriskLinkedid[event.linkedid])}`);
     }
     //Событие Поднятие трубки, начало разговора при исходящем вызове.
     if (asteriskLinkedid[event.linkedid] &&
@@ -157,6 +162,7 @@ nami.on(`namiEventBridgeEnter`, (event) => {
         asteriskLinkedid[event.linkedid].AnswerTime = moment().format();
         asteriskLinkedid[event.linkedid].switchCheckEvent();
         endpoint.sendEvent(asteriskLinkedid[event.linkedid]);
+        logger.info(`${util.inspect(asteriskLinkedid[event.linkedid])}`);
     }
     //Событие Поднятие трубки, начало разговора при исходящем вызове в случае исходящий CID городской номер.
     if (asteriskLinkedid[event.linkedid] &&
@@ -172,6 +178,7 @@ nami.on(`namiEventBridgeEnter`, (event) => {
         asteriskLinkedid[event.linkedid].AnswerTime = moment().format();
         asteriskLinkedid[event.linkedid].switchCheckEvent();
         endpoint.sendEvent(asteriskLinkedid[event.linkedid]);
+        logger.info(`${util.inspect(asteriskLinkedid[event.linkedid])}`);
     }
     //Событие Поднятие трубки, начало разговора при входящем вызове напрямую при групповом вызове.
     if (asteriskLinkedid[event.linkedid] &&
@@ -188,13 +195,14 @@ nami.on(`namiEventBridgeEnter`, (event) => {
         asteriskLinkedid[event.linkedid].AnswerTime = moment().format();
         asteriskLinkedid[event.linkedid].switchCheckEvent();
         endpoint.sendEvent(asteriskLinkedid[event.linkedid]);
+        logger.info(`${util.inspect(asteriskLinkedid[event.linkedid])}`);
     }
 });
 
 nami.on(`namiEventHangup`, (event) => {
     //Событие Завершение входящего вызова. Групповой вызов отвеченный
-    if (!asteriskLinkedid[event.linkedid].CallTransfer && 
-        asteriskLinkedid[event.linkedid] &&
+    if (asteriskLinkedid[event.linkedid] && 
+        !asteriskLinkedid[event.linkedid].CallTransfer && 
         asteriskLinkedid[event.linkedid].CheckEvent &&
         event.connectedlinenum.toString().length > 3 &&
         event.calleridnum.toString().length < 4 &&

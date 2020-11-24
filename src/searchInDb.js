@@ -1,7 +1,8 @@
 const db = require(`../models/db`),
     logger = require(`../logger/logger`),
     Endpoint = require('./endpoints'),
-    util = require('util');
+    util = require('util'),
+    appConfig = require(`../config/config`);
 
     
 const endpoint = new Endpoint(appConfig.endpoint.event),
@@ -15,6 +16,7 @@ let status = {
 
 
 const searchCallInfoInCdr = (asteriskLinkedid, uniqueid) => {
+    logger.info(`Выполнение searchCallInfoInCdr ${asteriskLinkedid}  ${uniqueid}`);
     db.query('select billsec,disposition,recordingfile from cdr where uniqueid like  "' + uniqueid + '"', (err, result) => {
         if (err) logger.error(err);
         if (result[0] && result.length == 1) {
@@ -42,6 +44,7 @@ const searchCallInfoInCdr = (asteriskLinkedid, uniqueid) => {
 };
 
 const searchGroupCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
+    logger.info(`Выполнение searchGroupCallInfoInCDR ${asteriskLinkedid}  ${uniqueid}`);
     db.query('select billsec,disposition,recordingfile from cdr where uniqueid like  "' + uniqueid + '" and disposition like "ANSWERED"', (err, result) => {
         if (err) logger.error(err);
         if (result[0]) {
@@ -63,6 +66,7 @@ const searchGroupCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
 
 
 const searchCongestionCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
+    logger.info(`Выполнение searchCongestionCallInfoInCDR ${asteriskLinkedid}  ${uniqueid}`);
     db.query('select dst,recordingfile from cdr where uniqueid like  "' + uniqueid + '" ', (err, result) => {
         if (err) logger.error(err);
         if (result[0]) {
@@ -80,12 +84,14 @@ const searchCongestionCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
 };
 
 const searchTransferCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
-    db.query('select dst,recordingfile, billsec from cdr where uniqueid like "' + uniqueid + '" ORDER BY sequence DESC LIMIT 1;', (err, result) => {
+    logger.info(`Выполнение searchTransferCallInfoInCDR ${asteriskLinkedid}  ${uniqueid}`);
+    db.query('select dst,recordingfile,disposition, billsec from cdr where uniqueid like "' + uniqueid + '" ORDER BY sequence DESC LIMIT 1;', (err, result) => {
         if (err) logger.error(err);
         if (result[0]) {
             logger.info(`Результат выполнения запроса searchTransferCallInfoInCDR ${util.inspect(result)}`);
             asteriskLinkedid[uniqueid].CodexExtention = result[0].dst;
             asteriskLinkedid[uniqueid].CallTime = result[0].billsec;
+            asteriskLinkedid[uniqueid].Status = status[result[0].disposition];
             endpoint.sendEvent(asteriskLinkedid[uniqueid]);
             if (result[0].recordingfile && result[0].recordingfile != '') {
                 logger.info(`Отправляем запись ${result[0].recordingfile}`);

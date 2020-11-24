@@ -40,15 +40,19 @@ class Endpoint {
 
         }
         logger.info(`Отправляем запрос ${util.inspect(json)}`);
-        const res = await axios.post(this.urlSendEvent, JSON.stringify(json), config)
-        const result = await res;
 
-        logger.info(`Получили результат на запрос ${util.inspect(result.data)}`);
-        if (!result) {
-            logger.error('Отсутствует результат');
-            return [];
+        try {
+            const res = await axios.post(this.urlSendEvent, JSON.stringify(json), config)
+            const result = await res;
+
+            if (!result) {
+                logger.info('Отсутствует результат');
+            }
+            logger.info(`Получили результат на запрос ${util.inspect(result.data)}`);
+        } catch (e){
+            logger.error(e);
         }
-        return result.data;
+
     };
 
     async sendAudio(audioFileName, uniqueid) {
@@ -69,14 +73,18 @@ class Endpoint {
             data: formData
         };
 
-        const res = await axios(config)
-        const result = await res;
-        logger.info(`Получили результат на запрос ${util.inspect(result.data)}`);
-        if (!result) {
-            logger.error('Отсутствует результат');
-            return [];
+        try {
+            const res = await axios(config)
+            const result = await res;
+            
+            if (!result) {
+                logger.error('Отсутствует результат');
+            }
+            logger.info(`Получили результат на запрос ${util.inspect(result.data)}`);
+
+        } catch(e){
+            logger.error(e);
         }
-        return result.data;
 
     };
 };

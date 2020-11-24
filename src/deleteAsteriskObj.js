@@ -1,6 +1,6 @@
 "use strict";
 
-const delObj = (asteriskLinkedid,uniqueid) => {
+const delObj = (asteriskLinkedid, uniqueid) => {
     delete asteriskLinkedid[uniqueid];
 };
 

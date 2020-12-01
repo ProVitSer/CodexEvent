@@ -4,7 +4,7 @@ const db = require(`../models/db`),
     util = require('util'),
     appConfig = require(`../config/config`);
 
-    
+
 const endpoint = new Endpoint(appConfig.endpoint.event),
     endpointFile = new Endpoint(appConfig.endpoint.file);
 
@@ -17,30 +17,32 @@ let status = {
 
 const searchCallInfoInCdr = (asteriskLinkedid, uniqueid) => {
     logger.info(`Выполнение searchCallInfoInCdr ${asteriskLinkedid}  ${uniqueid}`);
-    db.query('select billsec,disposition,recordingfile from cdr where uniqueid like  "' + uniqueid + '"', (err, result) => {
-        if (err) logger.error(err);
-        if (result[0] && result.length == 1) {
-            logger.info(`Результат выполнения запроса searchCallInfoInCdr ${util.inspect(result)}`);
-            asteriskLinkedid[uniqueid].CallTime = result[0].billsec;
-            asteriskLinkedid[uniqueid].Status = status[result[0].disposition];
-            endpoint.sendEvent(asteriskLinkedid[uniqueid]);
-            if (result[0].recordingfile && result[0].recordingfile != '') {
-                logger.info(`Отправляем запись ${result[0].recordingfile}`);
-                endpointFile.sendAudio(result[0].recordingfile, uniqueid);
+    if (asteriskLinkedid[uniqueid].CallTransfer) { searchTransferCallInfoInCDR(asteriskLinkedid, uniqueid) } else {
+        db.query('select billsec,disposition,recordingfile from cdr where uniqueid like  "' + uniqueid + '"', (err, result) => {
+            if (err) logger.error(err);
+            if (result[0] && result.length == 1) {
+                logger.info(`Результат выполнения запроса searchCallInfoInCdr ${util.inspect(result)}`);
+                asteriskLinkedid[uniqueid].CallTime = result[0].billsec;
+                asteriskLinkedid[uniqueid].Status = status[result[0].disposition];
+                endpoint.sendEvent(asteriskLinkedid[uniqueid]);
+                if (result[0].recordingfile && result[0].recordingfile != '') {
+                    logger.info(`Отправляем запись ${result[0].recordingfile}`);
+                    endpointFile.sendAudio(result[0].recordingfile, uniqueid);
+                }
+            } else if (result[0] && result.length == 2) {
+                logger.info(`Результат выполнения запроса searchCallInfoInCdr ${util.inspect(result)}`);
+                asteriskLinkedid[uniqueid].CallTime = result[0].billsec;
+                asteriskLinkedid[uniqueid].Status = status[result[0].disposition];
+                endpoint.sendEvent(asteriskLinkedid[uniqueid]);
+                if (result[0].recordingfile && result[0].recordingfile != '') {
+                    logger.info(`Отправляем запись ${result[0].recordingfile}`);
+                    endpointFile.sendAudio(result[0].recordingfile, uniqueid);
+                }
+            } else {
+                searchGroupCallInfoInCDR(asteriskLinkedid, uniqueid)
             }
-        } else if (result[0] && result.length == 2) {
-            logger.info(`Результат выполнения запроса searchCallInfoInCdr ${util.inspect(result)}`);
-            asteriskLinkedid[uniqueid].CallTime = result[0].billsec;
-            asteriskLinkedid[uniqueid].Status = status[result[0].disposition];
-            endpoint.sendEvent(asteriskLinkedid[uniqueid]);
-            if (result[0].recordingfile && result[0].recordingfile != '') {
-                logger.info(`Отправляем запись ${result[0].recordingfile}`);
-                endpointFile.sendAudio(result[0].recordingfile, uniqueid);
-            }
-        } else {
-            searchGroupCallInfoInCDR(asteriskLinkedid, uniqueid)
-        }
-    });
+        });
+    }
 };
 
 const searchGroupCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
@@ -85,7 +87,7 @@ const searchCongestionCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
 
 const searchTransferCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
     logger.info(`Выполнение searchTransferCallInfoInCDR ${asteriskLinkedid}  ${uniqueid}`);
-    db.query('select dst,recordingfile,disposition, billsec from cdr where uniqueid like "' + uniqueid + '" ORDER BY sequence DESC LIMIT 1;', (err, result) => {
+    db.query('select dst,recordingfile,disposition, billsec from cdr where linkedid like "' + uniqueid + '" ORDER BY sequence DESC LIMIT 1;', (err, result) => {
         if (err) logger.error(err);
         if (result[0]) {
             logger.info(`Результат выполнения запроса searchTransferCallInfoInCDR ${util.inspect(result)}`);
@@ -99,10 +101,11 @@ const searchTransferCallInfoInCDR = (asteriskLinkedid, uniqueid) => {
             }
         } else {
             logger.info(`Transfer call error ${uniqueid} ${util.inspect(result)}`);
+            //setTimeout(searchTransferCallInfoInCDR, 5000, '', uniqueid);
         }
     });
 };
 
 
 
-module.exports = {searchCallInfoInCdr, searchCongestionCallInfoInCDR, searchTransferCallInfoInCDR};
+module.exports = { searchCallInfoInCdr, searchCongestionCallInfoInCDR, searchTransferCallInfoInCDR };

@@ -2,7 +2,7 @@
 const moment = require('moment'),
     util = require('util'),
     nami = require(`./models/ami`),
-    logger = require(`./logger/logger`), 
+    logger = require(`./logger/logger`),
     Endpoint = require('./src/endpoints'),
     createAsteriskEventObj = require('./src/createAsteriskObj'),
     appConfig = require(`./config/config`),
@@ -71,9 +71,9 @@ nami.on(`namiEventNewexten`, (event) => {
         event.appdata == '(Outgoing Line)') {
 
         logger.info(event);
-        asteriskLinkedid[event.linkedid].CheckEvent = false;
-        asteriskLinkedid[event.linkedid].Status = 'Ringing';
-        asteriskLinkedid[event.linkedid].switchCheckEvent();
+        //asteriskLinkedid[event.linkedid].CheckEvent = false;
+        //asteriskLinkedid[event.linkedid].Status = 'Ringing';
+        //asteriskLinkedid[event.linkedid].switchCheckEvent();
     }
     //Событие Начала обработки вызова. Событие не отправляется на endpoint, отладочная информация
     if (event.channelstatedesc == `Ringing` &&
@@ -88,15 +88,15 @@ nami.on(`namiEventNewexten`, (event) => {
 
     //Событие Congestion. Внутренний абонент не зарегистрирован
     if (event.channelstatedesc == `Up` &&
-       event.calleridnum.toString().length > 3 &&
-       event.exten == 's-CHANUNAVAIL' &&
-       event.application == 'Congestion') {
+        event.calleridnum.toString().length > 3 &&
+        event.exten == 's-CHANUNAVAIL' &&
+        event.application == 'Congestion') {
 
-       logger.info(event);
-       asteriskLinkedid[event.linkedid].Status = 'Missed';
-       setTimeout(searchInDb.searchCongestionCallInfoInCDR, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
-       setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
-   }
+        logger.info(event);
+        asteriskLinkedid[event.linkedid].Status = 'Missed';
+        setTimeout(searchInDb.searchCongestionCallInfoInCDR, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
+        setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);
+    }
 
 });
 
@@ -109,8 +109,25 @@ nami.on(`namiEventVarSet`, (event) => {
 
         logger.info(event);
         asteriskLinkedid[event.linkedid].CallTransfer = true;
+        asteriskLinkedid[event.linkedid].Status = "Completed";
+        endpoint.sendEvent(asteriskLinkedid[event.linkedid]);
         logger.info(`${util.inspect(asteriskLinkedid[event.linkedid])}`);
     }
+    if (event.calleridnum &&
+        asteriskLinkedid[event.linkedid].CheckEvent &&
+        event.calleridnum.toString().length > 4 &&
+        event.connectedlinenum.toString().length > 4 &&
+        event.context == 'from-pstn' &&
+        event.variable == 'BLINDTRANSFER') {
+
+        logger.info(event);
+        asteriskLinkedid[event.linkedid].CallTransfer = true;
+        asteriskLinkedid[event.linkedid].Status = "Completed";
+        endpoint.sendEvent(asteriskLinkedid[event.linkedid]);
+        logger.info(`${util.inspect(asteriskLinkedid[event.linkedid])}`);
+        asteriskLinkedid[event.linkedid].switchCheckEvent();
+    }
+
 
 });
 
@@ -191,6 +208,7 @@ nami.on(`namiEventBridgeEnter`, (event) => {
         logger.info(event);
         asteriskLinkedid[event.linkedid].CheckEvent = false;
         asteriskLinkedid[event.linkedid].CodexExtention = event.calleridnum;
+        asteriskLinkedid[event.linkedid].FromNumber = event.calleridnum;
         asteriskLinkedid[event.linkedid].Status = 'Answer';
         asteriskLinkedid[event.linkedid].AnswerTime = moment().format();
         asteriskLinkedid[event.linkedid].switchCheckEvent();
@@ -200,9 +218,11 @@ nami.on(`namiEventBridgeEnter`, (event) => {
 });
 
 nami.on(`namiEventHangup`, (event) => {
+    logger.info(event);
+    logger.info(`${util.inspect(asteriskLinkedid)}`);
     //Событие Завершение входящего вызова. Групповой вызов отвеченный
-    if (asteriskLinkedid[event.linkedid] && 
-        !asteriskLinkedid[event.linkedid].CallTransfer && 
+    if (asteriskLinkedid[event.linkedid] &&
+        !asteriskLinkedid[event.linkedid].CallTransfer &&
         asteriskLinkedid[event.linkedid].CheckEvent &&
         event.connectedlinenum.toString().length > 3 &&
         event.calleridnum.toString().length < 4 &&
@@ -219,17 +239,21 @@ nami.on(`namiEventHangup`, (event) => {
     }
     //Событие Завершение входящего вызова при трансфере.
     if (asteriskLinkedid[event.linkedid] &&
-        asteriskLinkedid[event.linkedid].CallTransfer && 
-        asteriskLinkedid[event.linkedid].CheckEvent &&
-        event.connectedlinenum.toString().length < 4 &&
-        event.calleridnum.toString().length > 4 &&
-        event.context == 'from-internal' &&
+        asteriskLinkedid[event.linkedid].CallTransfer &&
+        //asteriskLinkedid[event.linkedid].CheckEvent &&
+        event.connectedlinenum.toString().length > 4 &&
+        event.calleridnum.toString().length < 4 &&
+        event.context == 'macro-dial-one' &&
         event.channelstatedesc != 'Ringing' &&
         event.cause != '26') {
 
         logger.info(event);
         asteriskLinkedid[event.linkedid].CheckEvent = false;
-        asteriskLinkedid[event.linkedid].CodexExtention = event.connectedlinenum;
+        if (event.connectedlinenum > 4) {
+            logger.info('asteriskLinkedid[event.linkedid].CodexExtention');
+        } else {
+            asteriskLinkedid[event.linkedid].CodexExtention = event.connectedlinenum;
+        }
         asteriskLinkedid[event.linkedid].Status = 'Completed';
         setTimeout(searchInDb.searchTransferCallInfoInCDR, SEARCH_TIMEOUT, asteriskLinkedid, event.linkedid);
         setTimeout(delObj, DEL_OBJ_TIMEOUT, asteriskLinkedid, event.linkedid);

@@ -58,7 +58,7 @@ class Endpoint {
     async sendAudio(audioFileName, uniqueid) {
         const formData = new FormData();
         let recordPath = moment().format("YYYY/MM/DD/");
-
+        logger.info(`/var/spool/asterisk/monitor/${recordPath}${audioFileName}`)
         formData.append('recording', fs.createReadStream('/var/spool/asterisk/monitor/' + recordPath + audioFileName));
         formData.append('callId', uniqueid);
 

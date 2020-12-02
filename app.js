@@ -30,10 +30,11 @@ const sendToEndpointIvrEvent = (linkedid) => {
 
 //Обработка событий набора DTMF. Таймером setTimeout(checkDTMF, 500, event.linkedid); можно регулировать частоту попаданию DTMF в объект вызова
 nami.on(`namiEventDTMFEnd`, (event) => {
-    if (event.direction == `Received` &&
+    if (asteriskLinkedid[event.linkedid] &&
+        event.direction == `Received` &&
         event.calleridnum.toString().length > 3 &&
         event.context == 'ivr-1' &&
-        event.exten == 's',
+        event.exten == 's' &&
         asteriskLinkedid[event.linkedid].CheckDtmf
     ) {
 
@@ -102,6 +103,7 @@ nami.on(`namiEventNewexten`, (event) => {
 
 nami.on(`namiEventVarSet`, (event) => {
     if (event.calleridnum &&
+        asteriskLinkedid[event.linkedid] &&
         event.calleridnum.toString().length < 4 &&
         event.connectedlinenum.toString().length > 3 &&
         event.context == 'from-internal' &&
@@ -114,6 +116,7 @@ nami.on(`namiEventVarSet`, (event) => {
         logger.info(`${util.inspect(asteriskLinkedid[event.linkedid])}`);
     }
     if (event.calleridnum &&
+        asteriskLinkedid[event.linkedid] &&
         asteriskLinkedid[event.linkedid].CheckEvent &&
         event.calleridnum.toString().length > 4 &&
         event.connectedlinenum.toString().length > 4 &&

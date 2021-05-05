@@ -72,9 +72,7 @@ nami.on(`namiEventNewexten`, (event) => {
         event.appdata == '(Outgoing Line)') {
 
         logger.info(event);
-        //asteriskLinkedid[event.linkedid].CheckEvent = false;
-        //asteriskLinkedid[event.linkedid].Status = 'Ringing';
-        //asteriskLinkedid[event.linkedid].switchCheckEvent();
+
     }
     //Событие Начала обработки вызова. Событие не отправляется на endpoint, отладочная информация
     if (event.channelstatedesc == `Ringing` &&
